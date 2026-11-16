@@ -21,7 +21,7 @@
 <body>
   <div class="phone" id="app">
 
-    <!-- S01 ようこそ・研究同意 -->
+    <!-- S01 ようこそ -->
     <section class="screen" id="screen-welcome">
       <div class="onb">
         <div class="onb-hero" id="welcome-chara"></div>
@@ -34,11 +34,6 @@
           <li><i data-ic="calendar"></i><div><strong>記録</strong><span>いっしょに過ごした日数や記念日をふりかえり</span></div></li>
         </ul>
         <form id="welcome-form" class="card form" novalidate>
-          <label class="check">
-            <input type="checkbox" id="consent" name="consent">
-            <span>研究の説明を読み、アプリの操作記録が研究目的で利用されることに同意します。</span>
-          </label>
-          <p class="error" id="welcome-error" role="alert"></p>
           <button class="btn primary block" type="submit">はじめる</button>
         </form>
       </div>
@@ -52,7 +47,10 @@
       </header>
       <form id="register-form" class="onb form" novalidate>
         <div class="reg-top">
-          <div class="reg-chara" id="reg-chara"></div>
+          <div class="reg-chara-box">
+            <div class="reg-chara" id="reg-chara"></div>
+            <p class="reg-chara-name" id="reg-chara-name">名前をいれてね</p>
+          </div>
           <label class="photo-pick">
             <input type="file" id="photo-input" accept="image/*" class="visually-hidden">
             <span class="photo-frame" id="photo-frame"></span>
@@ -83,7 +81,7 @@
           <input name="pronoun-custom" id="reg-pronoun-custom" maxlength="10" placeholder="じぶんで入力（例：おいら）" autocomplete="off" hidden>
         </fieldset>
         <label class="field">
-          <span>呼ばれ方 <small>（任意）</small></span>
+          <span>あなたの名前（呼ばれ方） <small>（任意）</small></span>
           <input name="user" id="reg-user" maxlength="12" placeholder="例: けいこ（空欄なら「あなた」）">
         </label>
         <p class="error" id="register-error" role="alert"></p>

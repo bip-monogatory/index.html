@@ -5,7 +5,7 @@
    データは端末のブラウザ（localStorage）にのみ保存されます
    ========================================================= */
 
-const CONFIG = Object.assign({ submitUrl: '', studyName: '' }, window.KASATOMO_CONFIG || {});
+const CONFIG = Object.assign({ studyName: '' }, window.KASATOMO_CONFIG || {});
 const STORE_KEY = 'kasatomo:v1';
 const APP_VERSION = '1.0.0';
 const MAX_LV = 30;
@@ -53,7 +53,7 @@ const MEASURES = [
   { id: 'check', label: '骨や布に傷みがないか点検した' }
 ];
 
-const XP = { login: 10, out: 20, home: 20, care: 15, chat: 5, memo: 30, measure: 50, anniv: 100 };
+const XP = { login: 10, out: 20, home: 20, care: 15, chat: 5, memo: 30, measure: 50, customMeasure: 15, anniv: 100 };
 const DAILY_LIMIT = { chat: 10, memo: 3 };
 const ACTIONS = {
   out: { label: 'いっしょにおでかけ', icon: 'out', lines: ['いってきます！ 帰りもいっしょだよ。', 'おでかけうれしいな。どこに置いても、ちゃんと連れて帰ってね。', '{user}といっしょなら、雨もへっちゃら！'] },
@@ -125,9 +125,6 @@ const ICONS = {
   check: '<path d="M5 12l5 5 9-10"/>',
   gift: '<rect x="3" y="8" width="18" height="13" rx="1"/><path d="M12 8v13M3 12h18M12 8C10 4 7 3 6.5 5S9 8 12 8zm0 0c2-4 5-5 5.5-3S15 8 12 8z"/>',
   heart: '<path d="M12 21s-8-5.3-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.7-8 11-8 11z"/>',
-  download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
-  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
-  upload: '<path d="M12 21V9M7 14l5-5 5 5M4 3h16"/>',
   left: '<path d="M15 18l-6-6 6-6"/>',
   right: '<path d="M9 18l6-6-6-6"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
@@ -169,7 +166,6 @@ function defaultState() {
   return {
     version: 1,
     participantId: '',
-    consentAt: null,
     userName: '',
     umbrella: null,
     xp: 0,
@@ -177,6 +173,7 @@ function defaultState() {
     homeView: 'chara',
     daily: {},
     measures: {},
+    customMeasures: [],
     memories: [],
     chats: [],
     seenAnniv: [],
@@ -243,18 +240,31 @@ function isUnlocked(item) {
 }
 function addXp(n, reason) {
   const before = levelInfo(state.xp).lv;
-  state.xp += n;
-  log('xp', `${reason}:+${n}`);
+  state.xp = Math.max(0, state.xp + n);
+  log('xp', `${reason}:${n >= 0 ? '+' : ''}${n}`);
   const after = levelInfo(state.xp).lv;
   if (after > before) {
     const unlocked = ITEMS.filter((i) => i.level > before && i.level <= after);
     log('level_up', `Lv${after}`);
     runtime.modalQueue.push({ type: 'level', lv: after, unlocked });
+  } else if (after < before) {
+    log('level_down', `Lv${after}`);
   }
+  unequipLockedItems();
+}
+function unequipLockedItems() {
+  let changed = false;
+  SLOTS.forEach((s) => {
+    const id = state.equipped[s.id];
+    if (!id) return;
+    const item = ITEMS.find((i) => i.id === id && i.slot === s.id);
+    if (item && !isUnlocked(item)) { state.equipped[s.id] = null; changed = true; }
+  });
+  if (changed && $('#dress').open) renderDress();
 }
 function interactedToday() {
   const d = dayRec();
-  return Boolean(d.out || d.home || d.care || d.chat || d.memo);
+  return Boolean(d.out || d.home || d.care || d.chat || d.memo || d.customMeasure);
 }
 function currentMood() {
   if (interactedToday()) return 'happy';
@@ -424,7 +434,7 @@ function boot() {
   buildRegisterOptions();
   $('#welcome-chara').innerHTML = kasaSvg({ color: 'coral', mood: 'happy', equip: { bg: 'sunny' }, name: 'Monogatory' });
 
-  if (!state.consentAt) showScreen('welcome');
+  if (!state.participantId) showScreen('welcome');
   else if (!state.umbrella) showRegister(false);
   else enterMain();
 
@@ -458,12 +468,7 @@ function dailyCheck() {
 /* ---------- S01 ようこそ ---------- */
 function onWelcomeSubmit(e) {
   e.preventDefault();
-  const err = $('#welcome-error');
-  if (!$('#consent').checked) { err.textContent = '研究への同意にチェックしてください。'; return; }
-  err.textContent = '';
   if (!state.participantId) state.participantId = generateId();
-  if (!state.consentAt) state.consentAt = Date.now();
-  log('consent', `pid=${state.participantId};ua=${navigator.userAgent}`);
   save();
   showRegister(false);
 }
@@ -517,7 +522,9 @@ function updatePhotoFrame(src) {
 }
 function updateRegisterPreview() {
   const f = $('#register-form');
-  $('#reg-chara').innerHTML = kasaSvg({ color: f.elements.color.value || 'coral', mood: 'happy', equip: runtime.editing ? state.equipped : {}, name: f.elements.name.value });
+  const name = f.elements.name.value.trim();
+  $('#reg-chara').innerHTML = kasaSvg({ color: f.elements.color.value || 'coral', mood: 'happy', equip: runtime.editing ? state.equipped : {}, name });
+  $('#reg-chara-name').textContent = name || '名前をいれてね';
 }
 function readPhoto(file) {
   return new Promise((resolve, reject) => {
@@ -850,7 +857,9 @@ function timelineHtml() {
         const [id, on] = l.detail.split(':');
         return on === 'on' ? `対策「${MEASURES.find((m) => m.id === id)?.label || id}」` : null;
       }
+      case 'custom_measure': return `じぶんの対策「${l.detail}」`;
       case 'level_up': return `${l.detail.replace('Lv', 'Lv.')} にレベルアップ`;
+      case 'level_down': return `${l.detail.replace('Lv', 'Lv.')} にレベルダウン`;
       case 'anniversary': return `記念日：${l.detail}`;
       case 'register': return '相棒を登録した';
       default: return null;
@@ -896,6 +905,8 @@ function deleteMemo(id) {
   renderRecord();
 }
 function recordMeasure() {
+  const list = [...state.customMeasures].reverse();
+  const doneToday = Boolean(dayRec().customMeasure);
   return `
     <div class="card intro-card">
       <span class="anniv-ic green">${icon('shield')}</span>
@@ -910,17 +921,62 @@ function recordMeasure() {
           <span class="m-text">${esc(m.label)}${m.hint ? `<small>${esc(m.hint)}</small>` : ''}${rec?.on ? `<small class="m-date">${fmtShort(rec.ts)} にチェック</small>` : ''}</span>
         </label>`;
       }).join('')}
+    </div>
+    <h3 class="sec-title">きょうの対策を記録</h3>
+    <form class="card form custom-measure-form" id="custom-measure-form">
+      <label class="field"><span>じぶんで気づいた、なくさないための工夫</span>
+        <input name="text" maxlength="40" placeholder="例: カバンの内ポケットに入れた" ${doneToday ? 'disabled' : ''}></label>
+      <button class="btn primary block" type="submit" ${doneToday ? 'disabled' : ''}>${icon('plus')}記録する</button>
+      <p class="note">${doneToday ? 'きょうはもう記録済だよ' : `1日1回まで 愛着度 +${XP.customMeasure}`}</p>
+    </form>
+    <div class="diary-list">
+      ${list.map((m) => {
+        const mDate = m.date || ymd(new Date(m.ts));
+        const canDelete = mDate === today();
+        return `<article class="card diary"><time>${fmtShort(m.ts)}</time><p>${esc(m.text)}</p>${canDelete ? `<button class="icon-btn" type="button" data-action="del-custom-measure" data-id="${esc(m.id)}" aria-label="削除">${icon('trash')}</button>` : ''}</article>`;
+      }).join('')}
     </div>`;
+}
+function addCustomMeasure(form) {
+  const text = form.elements.text.value.trim().slice(0, 40);
+  if (!text) { toast('やった対策を入力してね'); return; }
+  const d = dayRec();
+  if (d.customMeasure) { toast('きょうはもう記録済だよ'); return; }
+  d.customMeasure = Date.now();
+  state.customMeasures.push({ id: `cm${Date.now()}`, ts: Date.now(), date: today(), text });
+  log('custom_measure', text);
+  addXp(XP.customMeasure, 'custom_measure');
+  save();
+  renderRecord();
+  toast(`記録しました。愛着度 +${XP.customMeasure}`);
+  flushModals();
+}
+function deleteCustomMeasure(id) {
+  const rec = state.customMeasures.find((m) => m.id === id);
+  if (!rec) return;
+  const recDate = rec.date || ymd(new Date(rec.ts));
+  if (recDate !== today()) { toast('翌日以降の記録は削除できません'); return; }
+  if (!window.confirm('この記録を削除しますか？')) return;
+  state.customMeasures = state.customMeasures.filter((m) => m.id !== id);
+  if (dayRec(recDate).customMeasure) delete dayRec(recDate).customMeasure;
+  log('custom_measure_delete', id);
+  addXp(-XP.customMeasure, 'custom_measure_delete');
+  save();
+  renderRecord();
+  toast(`記録を削除しました。愛着度 -${XP.customMeasure}`);
 }
 function toggleMeasure(id, on) {
   if (!MEASURES.some((m) => m.id === id)) return;
   const rec = state.measures[id] || {};
-  const first = on && !rec.firstTs;
+  const wasOn = Boolean(rec.on);
   state.measures[id] = { on, ts: Date.now(), firstTs: rec.firstTs || (on ? Date.now() : null) };
   log('measure', `${id}:${on ? 'on' : 'off'}`);
-  if (first) {
+  if (on && !wasOn) {
     addXp(XP.measure, `measure:${id}`);
     toast(id === 'tag' ? 'ネームタグのきせかえが解放されたよ！' : `すてき！ 愛着度 +${XP.measure}`);
+  } else if (!on && wasOn) {
+    addXp(-XP.measure, `measure:${id}`);
+    toast(`チェックを外したよ。愛着度 -${XP.measure}`);
   }
   save();
   renderRecord();
@@ -938,19 +994,9 @@ function renderSettings() {
         <dt>名前</dt><dd>${esc(u.name)}</dd>
         <dt>種類</dt><dd>${esc(u.type)}</dd>
         <dt>使い始めた日</dt><dd>${fmtDate(u.startDate)}</dd>
-        <dt>呼ばれ方</dt><dd>${esc(state.userName || 'あなた')}</dd>
+        <dt>あなたの名前（呼ばれ方）</dt><dd>${esc(state.userName || 'あなた')}</dd>
       </dl>
       <button class="btn ghost block" type="button" data-action="edit-umbrella">${icon('edit')}登録内容を編集</button>
-    </div>
-
-    <h3 class="sec-title">記録データ</h3>
-    <div class="card">
-      <p class="note">データはこの端末のブラウザ内だけに保存されています。研究者の案内に従って書き出してください。</p>
-      <div class="btn-row">
-        <button class="btn ghost" type="button" data-action="export">${icon('download')}CSVを保存</button>
-        <button class="btn ghost" type="button" data-action="share">${icon('share')}共有して送る</button>
-      </div>
-      ${/^https:\/\//.test(CONFIG.submitUrl) ? `<button class="btn primary block" type="button" data-action="submit">${icon('upload')}研究者へ送信</button>` : ''}
     </div>
 
     <h3 class="sec-title">その他</h3>
@@ -961,138 +1007,9 @@ function renderSettings() {
     <p class="foot">データID：${esc(state.participantId)}<br>Monogatory ~愛着が育む、モノとの長いお付き合い~ v${APP_VERSION}${CONFIG.studyName ? `<br>${esc(CONFIG.studyName)}` : ''}</p>`;
 }
 
-/* ---------- データ書き出し ---------- */
-function csvCell(v) {
-  let s = String(v ?? '');
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return `"${s.replace(/"/g, '""')}"`;
-}
-function describeLog(entry) {
-  const detail = entry.detail || '';
-  const action = (kind) => ACTIONS[kind]?.label || kind;
-  const view = { home: 'ホーム', chat: 'おしゃべり', record: 'きろく', settings: 'せってい' };
-  const tab = { summary: 'きろく', diary: '日記', measure: 'たいせつ対策' };
-  const slot = { head: 'あたま', neck: 'くび', charm: 'チャーム', bg: 'はいけい' };
-
-  switch (entry.type) {
-    case 'consent': return { operation: '研究同意', description: '研究利用への同意' };
-    case 'register': return { operation: '相棒を登録', description: '登録内容を保存' };
-    case 'profile_edit': return { operation: '登録内容を編集', description: '登録内容を保存' };
-    case 'register_open': return { operation: '登録画面を開く', description: '' };
-    case 'profile_edit_open': return { operation: '登録内容の編集画面を開く', description: '' };
-    case 'app_open': return { operation: 'アプリを開く', description: '通常起動' };
-    case 'app_resume': return { operation: 'アプリを再開', description: '' };
-    case 'view': return { operation: '画面を開く', description: view[detail] || detail };
-    case 'xp': {
-      const index = detail.lastIndexOf(':+');
-      const reason = index >= 0 ? detail.slice(0, index) : detail;
-      const amount = index >= 0 ? detail.slice(index + 1) : '';
-      const reasonLabel = reason.startsWith('anniv') ? '記念日' : action(reason);
-      return { operation: '愛着度を獲得', description: `${reasonLabel}${amount ? ` ${amount}` : ''}` };
-    }
-    case 'level_up': return { operation: 'レベルアップ', description: detail };
-    case 'action': return { operation: action(detail), description: 'きょうのふれあいを記録' };
-    case 'poke': return { operation: 'キャラクターをタップ', description: '' };
-    case 'dress_open': return { operation: 'きせかえを開く', description: '' };
-    case 'equip': {
-      const [slotId, itemId] = detail.split(':');
-      const item = ITEMS.find((entryItem) => entryItem.id === itemId)?.name || (itemId === 'none' ? 'はずす' : itemId);
-      return { operation: 'きせかえを変更', description: `${slot[slotId] || slotId}：${item}` };
-    }
-    case 'chat_me': return { operation: 'メッセージを送信', description: 'おしゃべり' };
-    case 'chat_kasa': return { operation: 'メッセージを受信', description: 'キャラクターからの返答' };
-    case 'memo_add': return { operation: '日記を追加', description: '' };
-    case 'memo_delete': return { operation: '日記を削除', description: '' };
-    case 'measure': {
-      const [measureId, status] = detail.split(':');
-      const measure = MEASURES.find((entryMeasure) => entryMeasure.id === measureId)?.label || measureId;
-      return { operation: status === 'on' ? 'たいせつ対策を記録' : 'たいせつ対策を解除', description: measure };
-    }
-    case 'anniversary': return { operation: '記念日', description: detail };
-    case 'home_view': return { operation: '表示を切替', description: detail === 'photo' ? '登録写真を表示' : 'キャラクターを表示' };
-    case 'record_tab': return { operation: 'きろく内のページを開く', description: tab[detail] || detail };
-    case 'howto_open': return { operation: '使い方を開く', description: '' };
-    case 'export': return { operation: detail === 'share' ? 'CSVを共有' : 'CSVを保存', description: '' };
-    case 'submit': return { operation: '研究者へ送信', description: detail === 'sent' ? '送信を開始' : '送信エラー' };
-    default: return { operation: entry.type, description: detail };
-  }
-}
-function buildCsv(withBom = true) {
-  const pid = state.participantId;
-  const rows = [['participant_id', 'timestamp', 'type', 'detail', 'operation', 'description']];
-  state.logs.forEach((entry) => {
-    const summary = describeLog(entry);
-    rows.push([pid, fmtTs(entry.ts), entry.type, entry.detail, summary.operation, summary.description]);
-  });
-  const u = state.umbrella;
-  const li = levelInfo(state.xp);
-  const now = fmtTs(Date.now());
-  const snap = {
-    app_version: APP_VERSION,
-    level: li.lv,
-    xp: state.xp,
-    umbrella_name: u?.name,
-    umbrella_type: u?.type,
-    color: u?.color,
-    start_date: u?.startDate,
-    registered_date: u?.registeredDate,
-    days_since_start: u ? daysSinceStart() : '',
-    days_since_register: u ? daysSinceMeet() : '',
-    active_days: Object.values(state.daily).filter((d) => d.out || d.home || d.care || d.chat || d.memo).length,
-    login_days: Object.values(state.daily).filter((d) => d.login).length,
-    measures: MEASURES.filter((m) => state.measures[m.id]?.on).map((m) => m.id).join('|'),
-    memories: state.memories.length,
-    equipped: Object.entries(state.equipped).map(([k, v]) => `${k}:${v || '-'}`).join('|')
-  };
-  Object.entries(snap).forEach(([k, v]) => rows.push([pid, now, 'snapshot', `${k}=${v ?? ''}`, '記録時点の集計', `${k}：${v ?? ''}`]));
-  return (withBom ? '\uFEFF' : '') + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
-}
-function csvFileName() {
-  const d = new Date();
-  return `kasatomo_${state.participantId}_${ymd(d).replace(/-/g, '')}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
-}
-async function exportCsv(share) {
-  log('export', share ? 'share' : 'download');
-  save();
-  const csv = buildCsv();
-  const name = csvFileName();
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  if (share) {
-    const file = new File([blob], name, { type: 'text/csv' });
-    if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: name }); return; } catch (err) { if (err?.name === 'AbortError') return; }
-    }
-    toast('共有に対応していないため、保存に切り替えます');
-  }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-async function submitToResearcher() {
-  if (!/^https:\/\//.test(CONFIG.submitUrl)) return;
-  if (!window.confirm('記録データを研究者へ送信します。よろしいですか？')) return;
-  try {
-    await fetch(CONFIG.submitUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ participantId: state.participantId, sentAt: new Date().toISOString(), csv: buildCsv(false) })
-    });
-    log('submit', 'sent');
-    toast('送信しました。ご協力ありがとうございます！');
-  } catch {
-    log('submit', 'error');
-    toast('送信できませんでした。通信環境を確認してください。');
-  }
-  save();
-}
 function resetAll() {
   if (!window.confirm('すべてのデータ（登録内容・記録）を削除します。よろしいですか？')) return;
-  if (!window.confirm('削除したデータは元に戻せません。本当に削除しますか？\n（研究参加中の方は、先にCSVを保存してください）')) return;
+  if (!window.confirm('削除したデータは元に戻せません。本当に削除しますか？')) return;
   localStorage.removeItem(STORE_KEY);
   runtime.resetting = true;
   location.replace(location.pathname + location.search);
@@ -1177,11 +1094,9 @@ document.addEventListener('click', (e) => {
     case 'cal': shiftMonth(Number(el.dataset.dir)); break;
     case 'chip': sendChat(el.dataset.text); break;
     case 'del-memo': deleteMemo(el.dataset.id); break;
+    case 'del-custom-measure': deleteCustomMeasure(el.dataset.id); break;
     case 'edit-umbrella': showRegister(true); break;
     case 'register-back': runtime.editing ? goView('settings') : showScreen('welcome'); break;
-    case 'export': exportCsv(false); break;
-    case 'share': exportCsv(true); break;
-    case 'submit': submitToResearcher(); break;
     case 'howto': openHowto(); break;
     case 'reset': resetAll(); break;
     case 'close-modal': $('#modal').close(); break;
@@ -1191,6 +1106,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('submit', (e) => {
   const f = e.target;
   if (f.id === 'diary-form') { e.preventDefault(); addMemo(f); }
+  if (f.id === 'custom-measure-form') { e.preventDefault(); addCustomMeasure(f); }
 });
 document.addEventListener('change', (e) => {
   const m = e.target.dataset?.measure;

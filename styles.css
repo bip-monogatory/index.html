@@ -58,7 +58,6 @@ button { cursor: pointer; }
 .btn.primary:disabled { background: #D9CFC0; box-shadow: none; cursor: not-allowed; }
 .btn.ghost { border: 1.5px solid var(--line); background: #fff; color: var(--ink); }
 .btn.block { width: 100%; margin-top: 14px; }
-.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .icon-btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink); }
 .icon-btn:active { background: rgb(0 0 0 / .05); }
 .pill { padding: 4px 10px; border-radius: 999px; background: #FDE9DF; color: var(--coral-d); font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -79,8 +78,6 @@ input:not([type]), input[type="date"], select, textarea {
 }
 textarea { resize: vertical; line-height: 1.6; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--coral); box-shadow: 0 0 0 3px rgb(232 120 93 / .18); }
-.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
-.check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--coral); flex: none; }
 
 /* ---------- オンボーディング ---------- */
 .onb { padding: calc(20px + var(--safe-t)) 20px calc(32px + var(--safe-b)); }
@@ -101,7 +98,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .subbar + .onb { padding-top: 18px; }
 
 .reg-top { display: flex; align-items: center; justify-content: center; gap: 22px; margin-bottom: 18px; }
+.reg-chara-box { display: grid; justify-items: center; gap: 6px; }
 .reg-chara { width: 120px; }
+.reg-chara-name { max-width: 120px; margin: 0; padding: 3px 12px; overflow: hidden; border-radius: 999px; background: #FDE9DF; color: var(--coral-d); font-size: 12px; font-weight: 700; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .photo-pick { display: grid; justify-items: center; gap: 6px; cursor: pointer; }
 .photo-frame { display: grid; place-items: center; align-content: center; width: 120px; height: 120px; overflow: hidden; border: 2px dashed #D9C9AE; border-radius: 50%; background: #fff; color: var(--muted); font-size: 12px; }
 .photo-frame .ic { width: 30px; height: 30px; color: var(--coral); }
@@ -144,12 +143,15 @@ main { padding: 6px 0 calc(var(--tab-h) + var(--safe-b) + 20px); }
 .stage { position: relative; height: 320px; margin: 10px 16px 14px; overflow: hidden; border-radius: 24px; isolation: isolate; }
 .stage.mini { height: 190px; margin: 0; }
 .stage.mini .kasa { position: absolute; bottom: 4px; left: 50%; width: 140px; transform: translateX(-50%); }
-.bg-sunny { background: radial-gradient(circle at 84% 16%, #FFE27A 0 26px, rgb(255 226 122 / .35) 27px 42px, transparent 43px), linear-gradient(#BFE6F0, #E9F6F2 72%, #CFE7C4 72%); }
-.bg-rain { background: linear-gradient(#93A9B9, #C5D2DA 72%, #A6BCA6 72%); }
+/* 詳細度を.item-thumbの単色背景より高くして、きせかえのプレビューにも反映させる */
+.stage.bg-sunny, .item-thumb.bg-sunny { background: radial-gradient(circle at 84% 16%, #FFE27A 0 26px, rgb(255 226 122 / .35) 27px 42px, transparent 43px), linear-gradient(#BFE6F0, #E9F6F2 72%, #CFE7C4 72%); }
+.stage.bg-rain, .item-thumb.bg-rain { background: linear-gradient(#93A9B9, #C5D2DA 72%, #A6BCA6 72%); }
 .bg-rain::before { content: ""; position: absolute; inset: -40px 0 0; z-index: -1; background: repeating-linear-gradient(105deg, transparent 0 16px, rgb(255 255 255 / .5) 16px 17.5px); animation: rain .8s linear infinite; }
 @keyframes rain { to { transform: translate(-10px, 40px); } }
-.bg-night { background: radial-gradient(circle at 80% 18%, #FFF6C9 0 18px, transparent 19px), radial-gradient(circle at 15% 22%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 35% 12%, #fff 0 1px, transparent 1.5px), radial-gradient(circle at 60% 30%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 25% 45%, #fff 0 1px, transparent 1.5px), linear-gradient(#26335C, #44558A 72%, #2F4A45 72%); }
-.bg-rainbow { background: radial-gradient(circle at 50% 100%, transparent 0 150px, #F28B82 151px 162px, #F6C850 163px 174px, #8FD19E 175px 186px, #7BB6E8 187px 198px, #B49BE0 199px 210px, transparent 211px), linear-gradient(#CDEBF5, #F3FAF6 72%, #CFE7C4 72%); }
+.stage.bg-night, .item-thumb.bg-night { background: radial-gradient(circle at 80% 18%, #FFF6C9 0 18px, transparent 19px), radial-gradient(circle at 15% 22%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 35% 12%, #fff 0 1px, transparent 1.5px), radial-gradient(circle at 60% 30%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 25% 45%, #fff 0 1px, transparent 1.5px), linear-gradient(#26335C, #44558A 72%, #2F4A45 72%); }
+.stage.bg-rainbow { background: radial-gradient(circle at 50% 100%, transparent 0 150px, #F28B82 151px 162px, #F6C850 163px 174px, #8FD19E 175px 186px, #7BB6E8 187px 198px, #B49BE0 199px 210px, transparent 211px), linear-gradient(#CDEBF5, #F3FAF6 72%, #CFE7C4 72%); }
+/* サムネイル(70px)はステージより小さいため、虹の半径を縮小して見えるようにする */
+.item-thumb.bg-rainbow { background: radial-gradient(circle at 50% 100%, transparent 0 32px, #F28B82 33px 36px, #F6C850 37px 40px, #8FD19E 41px 44px, #7BB6E8 45px 48px, #B49BE0 49px 52px, transparent 53px), linear-gradient(#CDEBF5, #F3FAF6 72%, #CFE7C4 72%); }
 
 .stage-chara { position: absolute; bottom: 6px; left: 50%; width: 200px; padding: 0; border: 0; background: none; transform: translateX(-50%); }
 .stage-chara.is-jump .kasa { animation: jump .5s ease; }
